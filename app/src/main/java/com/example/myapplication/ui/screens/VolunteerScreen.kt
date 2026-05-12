@@ -18,11 +18,13 @@ import androidx.compose.ui.unit.dp
 import com.example.myapplication.data.model.Report
 import com.example.myapplication.ui.theme.EcoGradientStart
 import com.example.myapplication.ui.theme.SoftBlue
+import com.example.myapplication.ui.viewmodel.AuthViewModel
 import com.example.myapplication.ui.viewmodel.ReportViewModel
 
 @Composable
-fun VolunteerScreen(viewModel: ReportViewModel) {
+fun VolunteerScreen(viewModel: ReportViewModel, authViewModel: AuthViewModel) {
     val reports by viewModel.reports.collectAsState()
+    val currentUser = authViewModel.currentUser
     var selectedFilter by remember { mutableStateOf("Pending") }
 
     val filteredReports = reports.filter { 
@@ -82,7 +84,9 @@ fun VolunteerScreen(viewModel: ReportViewModel) {
             ) {
                 items(filteredReports) { report ->
                     VolunteerTaskCard(report) {
-                        viewModel.markAsCleaned(report.reportId)
+                        if (currentUser != null) {
+                            viewModel.markAsCleaned(report.reportId, currentUser.uid)
+                        }
                     }
                 }
             }
@@ -118,7 +122,7 @@ fun VolunteerTaskCard(report: Report, onMarkCleaned: () -> Unit) {
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${report.latitude}, ${report.longitude}",
+                            text = "${String.format("%.4f", report.latitude)}, ${String.format("%.4f", report.longitude)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Gray
                         )

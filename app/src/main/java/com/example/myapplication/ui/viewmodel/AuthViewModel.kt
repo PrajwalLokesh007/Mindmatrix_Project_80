@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.viewmodel
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.repository.AuthRepository
@@ -15,6 +16,10 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
     val currentUser get() = repository.currentUser
 
     fun login(email: String, pass: String) {
+        if (email.isBlank() || pass.isBlank()) {
+            _authState.value = AuthState.Error("Fields cannot be empty")
+            return
+        }
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             val result = repository.signIn(email, pass)
@@ -27,6 +32,10 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
     }
 
     fun signUp(name: String, email: String, pass: String) {
+        if (name.isBlank() || email.isBlank() || pass.isBlank()) {
+            _authState.value = AuthState.Error("Fields cannot be empty")
+            return
+        }
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             val result = repository.signUp(name, email, pass)
@@ -34,6 +43,18 @@ class AuthViewModel(private val repository: AuthRepository = AuthRepository()) :
                 _authState.value = AuthState.Success
             } else {
                 _authState.value = AuthState.Error(result.exceptionOrNull()?.message ?: "Registration Failed")
+            }
+        }
+    }
+
+    fun signInWithGoogle(context: Context) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = repository.signInWithGoogle(context)
+            if (result.isSuccess) {
+                _authState.value = AuthState.Success
+            } else {
+                _authState.value = AuthState.Error(result.exceptionOrNull()?.message ?: "Google Sign-In Failed")
             }
         }
     }

@@ -1,6 +1,7 @@
 package com.example.myapplication.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -22,17 +23,29 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.example.myapplication.data.model.Report
+import com.example.myapplication.data.model.User
 import com.example.myapplication.ui.components.SectionHeader
 import com.example.myapplication.ui.theme.EcoGradientEnd
 import com.example.myapplication.ui.theme.EcoGradientStart
+import com.example.myapplication.ui.theme.SoftBlue
 import com.example.myapplication.ui.viewmodel.ReportViewModel
+import com.example.myapplication.ui.viewmodel.UserViewModel
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.*
 
 @Composable
-fun DashboardScreen(navController: NavController, viewModel: ReportViewModel) {
+fun DashboardScreen(
+    navController: NavController, 
+    viewModel: ReportViewModel,
+    userViewModel: UserViewModel = viewModel()
+) {
     val reports by viewModel.reports.collectAsState()
+    val user by userViewModel.userData.collectAsState()
 
     Scaffold(
         floatingActionButton = {
@@ -55,20 +68,27 @@ fun DashboardScreen(navController: NavController, viewModel: ReportViewModel) {
         ) {
             item {
                 Spacer(modifier = Modifier.height(16.dp))
-                HeaderSection()
+                HeaderSection(user)
             }
 
             item {
-                EcoPointsCard()
+                EcoPointsCard(user)
+            }
+
+            item {
+                SectionHeader(title = "Community Map")
+                MiniMapCard(reports) {
+                    navController.navigate("maps")
+                }
             }
 
             item {
                 SectionHeader(title = "Quick Actions")
-                QuickActionsRow()
+                QuickActionsRow(navController)
             }
 
             item {
-                SectionHeader(title = "Recent Waste Reports")
+                SectionHeader(title = "Recent Reports")
             }
 
             if (reports.isEmpty()) {
@@ -81,7 +101,7 @@ fun DashboardScreen(navController: NavController, viewModel: ReportViewModel) {
                     )
                 }
             } else {
-                items(reports.take(10)) { report ->
+                items(reports.take(5)) { report ->
                     ReportCard(report)
                 }
             }
@@ -94,7 +114,7 @@ fun DashboardScreen(navController: NavController, viewModel: ReportViewModel) {
 }
 
 @Composable
-fun HeaderSection() {
+fun HeaderSection(user: User?) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -102,11 +122,11 @@ fun HeaderSection() {
     ) {
         Column {
             Text(
-                text = "Eco Dashboard",
+                text = "Hello, ${user?.name?.split(" ")?.getOrNull(0) ?: "Eco Hero"}!",
                 style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold)
             )
             Text(
-                text = "Keeping our surroundings clean",
+                text = "Ready to protect our city today?",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
             )
@@ -124,7 +144,7 @@ fun HeaderSection() {
 }
 
 @Composable
-fun EcoPointsCard() {
+fun EcoPointsCard(user: User?) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
@@ -152,11 +172,16 @@ fun EcoPointsCard() {
                         color = Color.White.copy(alpha = 0.8f)
                     )
                     Text(
-                        text = "Loading...", // In real app, bind to UserViewModel
+                        text = "${user?.ecoPoints ?: 0} pts",
                         style = MaterialTheme.typography.headlineLarge.copy(
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
+                    )
+                    Text(
+                        text = user?.rank?.displayName ?: "Eco Beginner",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White.copy(alpha = 0.9f)
                     )
                 }
                 Icon(
@@ -171,22 +196,84 @@ fun EcoPointsCard() {
 }
 
 @Composable
-fun QuickActionsRow() {
-    LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(end = 16.dp)
+fun MiniMapCard(reports: List<Report>, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(24.dp)
     ) {
-        item { QuickActionItem("History", Icons.Default.History) }
-        item { QuickActionItem("Badges", Icons.Default.EmojiEvents) }
-        item { QuickActionItem("Map View", Icons.Default.Map) }
+        val cameraPositionState = rememberCameraPositionState {
+            position = CameraPosition.fromLatLngZoom(LatLng(12.9716, 77.5946), 11f)
+        }
+        
+        Box {
+            GoogleMap(
+                modifier = Modifier.fillMaxSize(),
+                cameraPositionState = cameraPositionState,
+                uiSettings = MapUiSettings(
+                    zoomControlsEnabled = false,
+                    scrollGesturesEnabled = false,
+                    zoomGesturesEnabled = false,
+                    tiltGesturesEnabled = false,
+                    rotationGesturesEnabled = false,
+                )
+            ) {
+                reports.forEach { report ->
+                    Marker(
+                        state = MarkerState(position = LatLng(report.latitude, report.longitude)),
+                        icon = com.google.android.gms.maps.model.BitmapDescriptorFactory.defaultMarker(
+                            if (report.status == "Pending") 0f else 120f
+                        )
+                    )
+                }
+            }
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.1f))
+            )
+            
+            Surface(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(12.dp),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text(
+                    "View Full Map",
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
 @Composable
-fun QuickActionItem(label: String, icon: ImageVector) {
+fun QuickActionsRow(navController: NavController) {
+    LazyRow(
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(end = 16.dp)
+    ) {
+        item { QuickActionItem("Report", Icons.Default.AddAPhoto) { navController.navigate("report") } }
+        item { QuickActionItem("Map", Icons.Default.Map) { navController.navigate("maps") } }
+        item { QuickActionItem("Badges", Icons.Default.EmojiEvents) { navController.navigate("rewards") } }
+        item { QuickActionItem("Volunteer", Icons.Default.VolunteerActivism) { navController.navigate("volunteer") } }
+    }
+}
+
+@Composable
+fun QuickActionItem(label: String, icon: ImageVector, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(80.dp)
+        modifier = Modifier
+            .width(80.dp)
+            .clickable { onClick() }
     ) {
         Box(
             modifier = Modifier

@@ -1,5 +1,6 @@
 package com.example.myapplication.ui.viewmodel
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -14,7 +15,8 @@ class ReportViewModel(private val repository: ReportRepository = ReportRepositor
     private val _reportState = MutableStateFlow<ReportState>(ReportState.Idle)
     val reportState: StateFlow<ReportState> = _reportState
 
-    val reports: StateFlow<List<Report>> = MutableStateFlow(emptyList())
+    private val _reports = MutableStateFlow<List<Report>>(emptyList())
+    val reports: StateFlow<List<Report>> = _reports
 
     init {
         observeReports()
@@ -23,12 +25,13 @@ class ReportViewModel(private val repository: ReportRepository = ReportRepositor
     private fun observeReports() {
         viewModelScope.launch {
             repository.getReports().collect { list ->
-                (reports as MutableStateFlow).value = list
+                _reports.value = list
             }
         }
     }
 
     fun submitReport(
+        context: Context,
         userId: String,
         imageUri: Uri,
         wasteType: String,
@@ -38,7 +41,7 @@ class ReportViewModel(private val repository: ReportRepository = ReportRepositor
     ) {
         viewModelScope.launch {
             _reportState.value = ReportState.Loading
-            val result = repository.uploadReport(userId, imageUri, wasteType, lat, lng, description)
+            val result = repository.uploadReport(context, userId, imageUri, wasteType, lat, lng, description)
             if (result.isSuccess) {
                 _reportState.value = ReportState.Success
             } else {
@@ -47,9 +50,9 @@ class ReportViewModel(private val repository: ReportRepository = ReportRepositor
         }
     }
 
-    fun markAsCleaned(reportId: String) {
+    fun markAsCleaned(reportId: String, volunteerId: String) {
         viewModelScope.launch {
-            repository.updateReportStatus(reportId, "Cleaned")
+            repository.updateReportStatus(reportId, volunteerId, "Cleaned")
         }
     }
 
