@@ -2,12 +2,14 @@ package com.example.myapplication.ui.viewmodel
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.myapplication.data.model.Report
 import com.example.myapplication.data.repository.ReportRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
 
 class ReportViewModel(private val repository: ReportRepository = ReportRepository()) : ViewModel() {
@@ -24,9 +26,15 @@ class ReportViewModel(private val repository: ReportRepository = ReportRepositor
 
     private fun observeReports() {
         viewModelScope.launch {
-            repository.getReports().collect { list ->
-                _reports.value = list
-            }
+            // Added .catch to prevent the app from crashing if Firestore permissions are denied
+            repository.getReports()
+                .catch { e ->
+                    Log.e("ReportViewModel", "Error observing reports: ${e.message}")
+                    _reportState.value = ReportState.Error("Database access denied. Check your Firebase Rules.")
+                }
+                .collect { list ->
+                    _reports.value = list
+                }
         }
     }
 
@@ -41,18 +49,29 @@ class ReportViewModel(private val repository: ReportRepository = ReportRepositor
     ) {
         viewModelScope.launch {
             _reportState.value = ReportState.Loading
-            val result = repository.uploadReport(context, userId, imageUri, wasteType, lat, lng, description)
-            if (result.isSuccess) {
-                _reportState.value = ReportState.Success
-            } else {
-                _reportState.value = ReportState.Error(result.exceptionOrNull()?.message ?: "Upload Failed")
+            try {
+                val result = repository.uploadReport(context, userId, imageUri, wasteType, lat, lng, description)
+                if (result.isSuccess) {
+                    _reportState.value = ReportState.Success
+                } else {
+                    val errorMsg = result.exceptionOrNull()?.message ?: "Upload Failed"
+                    _reportState.value = ReportState.Error(errorMsg)
+                    Log.e("ReportViewModel", "Upload error: $errorMsg")
+                }
+            } catch (e: Exception) {
+                _reportState.value = ReportState.Error(e.message ?: "An unexpected error occurred")
+                Log.e("ReportViewModel", "Critical failure during submit: ${e.message}")
             }
         }
     }
 
     fun markAsCleaned(reportId: String, volunteerId: String) {
         viewModelScope.launch {
-            repository.updateReportStatus(reportId, volunteerId, "Cleaned")
+            try {
+                repository.updateReportStatus(reportId, volunteerId, "Cleaned")
+            } catch (e: Exception) {
+                Log.e("ReportViewModel", "Error marking as cleaned: ${e.message}")
+            }
         }
     }
 

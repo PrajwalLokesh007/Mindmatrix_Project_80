@@ -7,12 +7,11 @@ import java.io.File
 
 class ComposeFileProvider : FileProvider() {
     companion object {
-        // This function MUST take (context, authority) to work with your screen code
-        fun getImageUri(context: Context, authority: String): Uri {
+        fun getImageUri(context: Context): Uri {
             val directory = File(context.cacheDir, "images")
             directory.mkdirs()
             val file = File.createTempFile("selected_image_", ".jpg", directory)
-
+            val authority = "${context.packageName}.fileprovider"
             return getUriForFile(context, authority, file)
         }
     }

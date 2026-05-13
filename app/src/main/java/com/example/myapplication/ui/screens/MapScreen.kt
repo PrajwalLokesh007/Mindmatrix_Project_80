@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -16,7 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
-import com.example.myapplication.data.model.Report // FIXED: Matches your file
+import com.example.myapplication.data.model.Report
 import com.example.myapplication.ui.viewmodel.ReportViewModel
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
@@ -26,14 +24,9 @@ import com.google.maps.android.compose.*
 @Composable
 fun MapScreen(viewModel: ReportViewModel) {
     val context = LocalContext.current
-
-    // 1. Fixed State: Using the correct 'Report' type
     var selectedReport by remember { mutableStateOf<Report?>(null) }
+    val reports by viewModel.reports.collectAsState()
 
-    // 2. Observe reports from ViewModel
-    val reports by viewModel.reports.collectAsState(initial = emptyList())
-
-    // 3. Check for Location Permission
     val hasLocationPermission = remember {
         ContextCompat.checkSelfPermission(
             context,
@@ -41,7 +34,6 @@ fun MapScreen(viewModel: ReportViewModel) {
         ) == PackageManager.PERMISSION_GRANTED
     }
 
-    // 4. Initial camera position
     val cameraPositionState = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LatLng(12.9716, 77.5946), 11f)
     }
@@ -51,26 +43,22 @@ fun MapScreen(viewModel: ReportViewModel) {
             modifier = Modifier.fillMaxSize(),
             cameraPositionState = cameraPositionState,
             properties = MapProperties(
-                isMyLocationEnabled = hasLocationPermission,
-                mapType = MapType.NORMAL,
-                isTrafficEnabled = false
+                isMyLocationEnabled = hasLocationPermission
             ),
             uiSettings = MapUiSettings(
                 myLocationButtonEnabled = true,
                 zoomControlsEnabled = true
             )
         ) {
-            // 5. Draw markers using the real 'reports' list
             reports.forEach { report ->
                 Marker(
                     state = MarkerState(position = LatLng(report.latitude, report.longitude)),
                     title = report.wasteType,
                     snippet = "Status: ${report.status}",
-                    icon = if (report.status.equals("Cleaned", ignoreCase = true)) {
-                        BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN)
-                    } else {
-                        BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)
-                    },
+                    icon = BitmapDescriptorFactory.defaultMarker(
+                        if (report.status == "Pending") BitmapDescriptorFactory.HUE_RED 
+                        else BitmapDescriptorFactory.HUE_GREEN
+                    ),
                     onClick = {
                         selectedReport = report
                         false
@@ -79,41 +67,29 @@ fun MapScreen(viewModel: ReportViewModel) {
             }
         }
 
-        // 6. Legend Overlay
-        Card(
+        // Simple Legend
+        Surface(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .padding(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-            )
+                .align(Alignment.TopStart)
+                .padding(16.dp)
+                .padding(top = 40.dp),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            tonalElevation = 4.dp
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Text(
-                    text = "Legend",
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(Color.Red, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Pending", style = MaterialTheme.typography.labelSmall)
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(12.dp)
-                            .background(Color.Green, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cleaned", style = MaterialTheme.typography.labelSmall)
-                }
+            Column(modifier = Modifier.padding(8.dp)) {
+                LegendItem(Color.Red, "Pending")
+                LegendItem(Color.Green, "Cleaned")
             }
         }
+    }
+}
+
+@Composable
+fun LegendItem(color: Color, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
+        Box(modifier = Modifier.size(10.dp).background(color, CircleShape))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text, style = MaterialTheme.typography.labelSmall)
     }
 }
